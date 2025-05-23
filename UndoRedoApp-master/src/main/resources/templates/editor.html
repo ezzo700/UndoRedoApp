@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Text Editor with Undo/Redo</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" th:href="@{/css/styles.css}">
+</head>
+<body>
+<h1>Text Editor with Undo/Redo</h1>
+
+<div class="editor-container">
+    <textarea id="editor" th:text="${currentText}"></textarea>
+</div>
+
+<div class="button-container">
+    <button id="undoBtn" class="undo" th:disabled="${!canUndo}">Undo</button>
+    <button id="redoBtn" class="redo" th:disabled="${!canRedo}">Redo</button>
+    <button id="saveBtn">Save</button>
+    <span id="saveStatus"></span>
+</div>
+
+<div class="footer">
+    <p>Text Editor with Undo/Redo functionality - No Page Refresh</p>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const editor = document.getElementById('editor');
+        const undoBtn = document.getElementById('undoBtn');
+        const redoBtn = document.getElementById('redoBtn');
+        const saveBtn = document.getElementById('saveBtn');
+        const saveStatus = document.getElementById('saveStatus');
+        let timeout = null;
+
+        // Fetch and update editor state
+        function updateEditorState(data) {
+            editor.value = data.currentText;
+            undoBtn.disabled = !data.canUndo;
+            redoBtn.disabled = !data.canRedo;
+        }
+
+        // Show save status with timeout
+        function showSaveStatus(message) {
+            saveStatus.textContent = message;
+            setTimeout(() => {
+                saveStatus.textContent = '';
+            }, 2000);
+        }
+
+        // Handle API errors
+        function handleError(error) {
+            console.error('Error:', error);
+            showSaveStatus('Error saving changes');
+        }
+
+        // Save text changes
+        function saveChanges() {
+            const text = editor.value;
+
+            fetch('/api/update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ text: text })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    updateEditorState(data);
+                    showSaveStatus('Changes saved');
+                })
+                .catch(handleError);
+        }
+
+        // Auto-save with debounce
+        editor.addEventListener('input', function() {
+            clearTimeout(timeout);
+            timeout = setTimeout(saveChanges, 1000); // 1 second delay
+            saveStatus.textContent = 'Typing...';
+        });
+
+        // Manual save button
+        saveBtn.addEventListener('click', function() {
+            clearTimeout(timeout);
+            saveChanges();
+        });
+
+        // Undo action
+        undoBtn.addEventListener('click', function() {
+            fetch('/api/undo', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    updateEditorState(data);
+                    showSaveStatus('Undone');
+                })
+                .catch(handleError);
+        });
+
+        // Redo action
+        redoBtn.addEventListener('click', function() {
+            fetch('/api/redo', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    updateEditorState(data);
+                    showSaveStatus('Redone');
+                })
+                .catch(handleError);
+        });
+    });
+</script>
+</body>
+</html>
